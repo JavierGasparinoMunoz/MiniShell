@@ -9,11 +9,11 @@
 // Funcion encargada de comprobar si lo introducido por el usuario es un comando interno de la minishell
 int comprobarInternos(tline *line)
 {
-    int i;
+
     // Se comprueba si el usuario a introducido el mandato exit
     if (!strcmp(line->commands[line->ncommands - 1].argv[0], "exit"))
     {
-        printf("----Saliendo...----");
+        printf("----Saliendo...----\n");
         exit(0);
         return 1;
     }
@@ -44,11 +44,9 @@ int comprobarInternos(tline *line)
     return 0;
 }
 
-//Funcion encargada de ver si el comando introducido por el usuario se corresponde a un comando externo
-int comprobarExternos(){
 
-}
 
+//Función que correcoge el codigo relacionado con el comando cd
 int cd(tline *line)
 {
     char *dir;
@@ -56,7 +54,7 @@ int cd(tline *line)
 	
 	if(line->commands[0].argc > 2)
 	{
-	  fprintf(stderr,"Uso: %s directorio\n", line->commands[0].argv[0]);
+	  fprintf(stderr,"No se pueden introudcir más de dos argumentos\n");
 	  return 1;
 	}
 	
@@ -93,6 +91,34 @@ int umask()
 {
 }
 
+int ejecutarComandoExterno(tline * line){
+    pid_t  pid;
+	int status;		
+		
+	pid = fork();
+	if (pid < 0) { /* Error */
+		fprintf(stderr, "Falló el fork().\n%s\n", strerror(errno));
+		exit(1);
+	}
+	else if (pid == 0) { /* Proceso Hijo */
+		execvp(line->commands[0].filename, line->commands[0].argv);
+		//Si llega aquí es que se ha producido un error en el execvp
+		printf("Error al ejecutar el comando: %s\n", strerror(errno));
+		return 1;
+		
+	}
+	else { /* Proceso Padre. 
+    		- WIFEXITED(estadoHijo) es 0 si el hijo ha terminado de una manera anormal (caida, matado con un kill, etc). 
+		Distinto de 0 si ha terminado porque ha hecho una llamada a la función exit()
+    		- WEXITSTATUS(estadoHijo) devuelve el valor que ha pasado el hijo a la función exit(), siempre y cuando la 
+		macro anterior indique que la salida ha sido por una llamada a exit(). */
+		wait (&status);
+		if (WIFEXITED(status) != 0)
+			if (WEXITSTATUS(status) != 0)
+				printf("El comando no se ejecutó correctamente\n");
+		return 0;
+	}
+}
 int main(void)
 {
     // Los procesos SIGINT Y SIGQUIT solo deben funcionar con los procesos que esten dentro de la shell y no con la propia shell
@@ -105,7 +131,7 @@ int main(void)
     // Variable encargada de recoger la información tokenizada que se ha introducido
     tline * line;
 
-    int i, j,existencia;
+    int i,existencia;
     printf("msh:%s> ", getcwd(NULL,1024));
     while (fgets(buffer, 1024, stdin))
     {
@@ -116,16 +142,19 @@ int main(void)
         // Se comprueba si el usuario a introducido un enter, en ese caso se continuaria la ejecución mostrando el prompt
         if(line->ncommands >=1)
         {
-        for (i = 0; i < (line->ncommands - 1); i++)
+        for (i = 0; i < (line->ncommands); i++)
         {
-            if (line->commands[i].filename == NULL)
+            if ((line->commands[i].filename == NULL)&&((strcmp(line->commands[i].argv[0], "fg"))&&(strcmp(line->commands[i].argv[0], "cd"))
+            &&(strcmp(line->commands[i].argv[0], "jobs"))&&(strcmp(line->commands[i].argv[0], "umask"))&&(strcmp(line->commands[i].argv[0], "exit"))))
             {
                 printf("%s: No se encuentra el mandato\n", line->commands[i].argv[0]);
                 existencia = 0;
             }
         }
         if (existencia){
-            comprobarInternos(line);
+            if(!comprobarInternos(line)){
+                ejecutarComandoExterno(line);
+            }
         }
         }
 
