@@ -6,15 +6,20 @@
 #include "parser.h"
 #include <errno.h>
 
-// Funcion encargada de comprobar si lo introducido por el usuario es un comando interno de la minishell
-int comprobarInternos(tline *line)
-{
+typedef struct  {
+    pid_t pid[100];
+    int tamanio;
+    char command[100]; //Numero maximo del comando a 100
+} Jobs;
 
+// Funcion encargada de comprobar si lo introducido por el usuario es un comando interno de la minishell
+int comprobarInternos(tline *line,int numBg, Jobs listaJobs[])
+{
     // Se comprueba si el usuario a introducido el mandato exit
     if (!strcmp(line->commands[line->ncommands - 1].argv[0], "exit"))
     {
-        printf("----Saliendo...----\n");
-        exit(0);
+        
+        exitExecute(numBg,listaJobs);
         return 1;
     }
     // Se comprueba si el usuario a introducido el mandato cd
@@ -26,13 +31,22 @@ int comprobarInternos(tline *line)
     // Se comprueba si el usuario a introducido el mandato fg
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "fg"))
     {
+        if (numBg > 0){
+            if (line->commands->argc>1){
 
+            } else {
+                doFg();
+                numBg--;
+            }
+        } else {
+            printf("Mal input en fg")
+        }
         return 1;
     }
     // Se comprueba si el usuario a introducido el mandato jobs
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "jobs"))
     {
-
+        verJobs();
         return 1;
     }
     // Se comprueba si el usuario a introducido el mandato umask
@@ -46,7 +60,7 @@ int comprobarInternos(tline *line)
 
 
 
-//Función que correcoge el codigo relacionado con el comando cd
+//Función que recoge el codigo relacionado con el comando cd
 int cd(tline *line)
 {
     char *dir;
@@ -81,11 +95,33 @@ int cd(tline *line)
 	return 0;
 }
 
-int jobs()
+int jobCount = 0;
+
+void verJobs(Jobs listaJobs[],int *numero)
 {
+    for (int  i = 0; i < jobCount; i++)
+    {
+        printf("%d\t%s\n",jobList[i].pid,jobList[i].command);
+    }
+    return 1
 }
-int fg()
+
+void exitExecute(int nunBg,Jobs listaJobs[]){
+    printf("Saliendo...");
+    for (int  i = 0; i < numBg; i++)
+    {
+        for (int j = 0; j < listaJobs[i].tamanio; j++)
+        {
+            kill(listaJobs[i].pid[j],9)
+        }
+    }
+    free(listaJobs);
+    exit(0);
+    
+}
+void doFg()
 {
+    
 }
 int umask()
 {
@@ -131,6 +167,10 @@ int main(void)
     // Variable encargada de recoger la información tokenizada que se ha introducido
     tline * line;
 
+    //Variables que contaran el numero de procesos en segundo plano, y variable que los guarda
+    int numBg;
+    Jobs *listaJobs[] = malloc(sizeof(jobs)*100);
+
     int i,existencia;
     printf("msh:%s> ", getcwd(NULL,1024));
     while (fgets(buffer, 1024, stdin))
@@ -152,9 +192,9 @@ int main(void)
             }
         }
         if (existencia){
-            if(!comprobarInternos(line)){
+            if(!comprobarInternos(line,numBg,listaJobs)){
                 ejecutarComandoExterno(line);
-            }
+            } 
         }
         }
 
