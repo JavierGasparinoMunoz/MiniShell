@@ -196,7 +196,7 @@ int main(void)
 
     //Variables que contaran el numero de procesos en segundo plano, y variable que los guarda
     int numBg;
-    Jobs *listaJobs[] = malloc(sizeof(jobs)*100);
+    Jobs *listaJobs[] = malloc(sizeof(Jobs)*100);
 
     int i,existencia;
     printf("msh:%s> ", getcwd(NULL,1024));
