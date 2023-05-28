@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include "parser.h"
 #include <errno.h>
+#include <unistd.h>
 
 typedef struct  {
     pid_t pid[100];
@@ -38,7 +39,7 @@ int comprobarInternos(tline *line,int numBg, Jobs listaJobs[])
                 numBg--;
             }
         } else {
-            printf("Mal input en fg")
+            printf("Mal input en fg");
         }
         return 1;
     }
@@ -61,7 +62,7 @@ void redireccion(char* in, char* out, char* err){
     FILE *fIn,*fOut,*fErr;
     if (in != NULL){
         fIn = fopen(in,"r");
-        if (FIn != NULL){
+        if (fIn != NULL){
             dup2(fileno(fIn),STDIN_FILENO);
         } else {
             printf("Error al redireccionar a entrada estandar");
@@ -75,7 +76,7 @@ void redireccion(char* in, char* out, char* err){
         dup2(fileno(fOut),STDOUT_FILENO);      
         fclose(fOut);
     }
-    if (err!=null){
+    if (err!=NULL){
         fErr = fopen(err,"w");
         dup2(fileno(fErr),STDERR_FILENO);
         fclose(fErr);
