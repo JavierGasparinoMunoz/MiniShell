@@ -7,9 +7,9 @@
 #include <errno.h>
 
 // Funcion encargada de comprobar si lo introducido por el usuario es un comando interno de la minishell
-int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int * countJobs)
+int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int * countJobs, mode_t *mascara)
 {
-    int i, j;
+    int i, j,f;
     // Se comprueba si el usuario a introducido el mandato exit
     if (!strcmp(line->commands[line->ncommands - 1].argv[0], "exit"))
     {   
@@ -18,9 +18,11 @@ int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int
         for (i = 0; i < *countJobs; i++){
             free(jobsCommands[i]);
         }
-        free(jobsPids);
         for(j = 0; j < *countJobs; j++){
-            kill(atoi(jobsPids[j]),SIGKILL);
+            kill(jobsPids[j],9);
+        }
+        for (f = 0; f < *countJobs; f++){
+            free(jobsPids[f]);
         }
         }
         printf("----Saliendo...----\n");
@@ -48,7 +50,7 @@ int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int
     // Se comprueba si el usuario a introducido el mandato umask
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "umask"))
     {
-
+	execute_umask(mascara,line);
         return 1;
     }
     return 0;
@@ -103,10 +105,28 @@ int jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
 int fg()
 {
 }
-int umask()
+int execute_umask(mode_t *mascara,tline *line)
 {
+   int octal_mask;
+   int ceros = 4;
+   int aux = *mascara;
+   if(line->commands[0].argc > 2)
+	{
+	  fprintf(stderr,"No se pueden introudcir más de dos argumentos\n");
+	  return 1;
+	}
+   if(line->commands[0].argc == 1){
+      printf("Valor de la mascara: %o\n",*mascara);
+      return 0;
+   }
+   else{
+      octal_mask = strtol(line->commands[0].argv[1],NULL,8);
+      umask(octal_mask);
+      printf("Valor de la mascara:%o\n",octal_mask);
+      *mascara = octal_mask;
+      return 0;
+   }
 }
-
 int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids[],int * countJobs){
     pid_t  pid;
 	int status;		
@@ -156,11 +176,16 @@ int main(void)
 
     // Variables encargadas de recoger los pids y los nombres de los comandos que esten en background
     char * jobsCommands[30];
+    
     for ( size_t i = 0;i < 30; i++){
         jobsCommands[i] = (char *)malloc(1024 * sizeof(char));
     }
     pid_t * jobsPids = (pid_t *) malloc(sizeof(pid_t));
 
+    // Variable encargada de recoger la mascara que se posee
+    mode_t mascara = 18;
+    umask(18);
+    
     int i, existencia,countJobs;
     printf("msh:%s> ", getcwd(NULL,1024));
     countJobs = 0;
@@ -183,7 +208,7 @@ int main(void)
             }
         }
         if (existencia){
-            if(!comprobarInternos(line,&jobsCommands,&jobsPids,&countJobs)){
+            if(!comprobarInternos(line,&jobsCommands,&jobsPids,&countJobs,&mascara)){
                 ejecutarComandoExterno(line,&jobsCommands,&jobsPids,&countJobs);
             }
         }
