@@ -32,7 +32,7 @@ int comprobarInternos(tline *line,int numBg, Jobs listaJobs[])
     {
         if (numBg > 0){
             if (line->commands->argc>1){
-
+                
             } else {
                 doFg();
                 numBg--;
@@ -57,8 +57,29 @@ int comprobarInternos(tline *line,int numBg, Jobs listaJobs[])
     return 0;
 }
 
-void redireccion(){
-    
+void redireccion(char* in, char* out, char* err){
+    FILE *fIn,*fOut,*fErr;
+    if (in != NULL){
+        fIn = fopen(in,"r");
+        if (FIn != NULL){
+            dup2(fileno(fIn),STDIN_FILENO);
+        } else {
+            printf("Error al redireccionar a entrada estandar");
+            printf(stderr,"%s:No existe el fichero",in);
+            exit(1);
+        }
+        fclose(fIn);
+    }
+    if (out != NULL){
+        fOut = fopen(out,"w");
+        dup2(fileno(fOut),STDOUT_FILENO);      
+        fclose(fOut);
+    }
+    if (err!=null){
+        fErr = fopen(err,"w");
+        dup2(fileno(fErr),STDERR_FILENO);
+        fclose(fErr);
+    }
 }
 
 //Función que recoge el codigo relacionado con el comando cd
@@ -100,11 +121,13 @@ int jobCount = 0;
 
 void verJobs(Jobs listaJobs[],int *numero)
 {
-    for (int  i = 0; i < jobCount; i++)
+    for (i = 0; i < (*numero); i++) // comprobamos todas las instrucciones en bg
     {
-        printf("%d\t%s\n",jobList[i].pid,jobList[i].command);
+        for (j = 0; j < ljobs[i].tamaño; j++) // comprobamos todos las partes de las instrucciones
+        {
+            printf("%d      Running     %s \n",listaJobs[i].pid[j],listaJobs[i].command[j]);
+        }
     }
-    return 1
 }
 
 void exitExecute(int nunBg,Jobs listaJobs[]){
@@ -118,7 +141,6 @@ void exitExecute(int nunBg,Jobs listaJobs[]){
     }
     free(listaJobs);
     exit(0);
-    
 }
 void doFg()
 {
@@ -198,7 +220,7 @@ int main(void)
         }
         if (existencia){
             if(!comprobarInternos(line,numBg,listaJobs)){
-                ejecutarComandoExterno(line);
+                ejecutarComandoExterno(line,listaJobs,numBg);
             } 
         }
         } else {
