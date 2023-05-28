@@ -17,8 +17,7 @@ int comprobarInternos(tline *line,int numBg, Jobs listaJobs[])
 {
     // Se comprueba si el usuario a introducido el mandato exit
     if (!strcmp(line->commands[line->ncommands - 1].argv[0], "exit"))
-    {
-        
+    {    
         exitExecute(numBg,listaJobs);
         return 1;
     }
@@ -58,7 +57,9 @@ int comprobarInternos(tline *line,int numBg, Jobs listaJobs[])
     return 0;
 }
 
-
+void redireccion(){
+    
+}
 
 //Función que recoge el codigo relacionado con el comando cd
 int cd(tline *line)
@@ -123,13 +124,17 @@ void doFg()
 {
     
 }
+
 int umask()
 {
 }
 
-int ejecutarComandoExterno(tline * line){
+int ejecutarComandoExterno(tline * line, Jobs **listaJobss,int num){
+    Jobs *listaJobs[] = (Jobs *) listaJobss;
     pid_t  pid;
 	int status;		
+    int pipe1[2],pipe2[2];
+    pid_t *pidAux = malloc(line->ncommands);
 		
 	pid = fork();
 	if (pid < 0) { /* Error */
@@ -196,7 +201,10 @@ int main(void)
                 ejecutarComandoExterno(line);
             } 
         }
+        } else {
+            ejecutarComandoExterno(line,listaJobs,numBg);
         }
+        
 
         printf("msh:%s> ", getcwd(NULL,1024));
     }
