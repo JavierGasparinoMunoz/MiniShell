@@ -7,12 +7,22 @@
 #include <errno.h>
 
 // Funcion encargada de comprobar si lo introducido por el usuario es un comando interno de la minishell
-int comprobarInternos(tline *line)
+int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int * countJobs)
 {
-
+    int i, j;
     // Se comprueba si el usuario a introducido el mandato exit
     if (!strcmp(line->commands[line->ncommands - 1].argv[0], "exit"))
-    {
+    {   
+        if(!*countJobs == 0){
+        printf("funciona");
+        for (i = 0; i < *countJobs; i++){
+            free(jobsCommands[i]);
+        }
+        free(jobsPids);
+        for(j = 0; j < *countJobs; j++){
+            kill(atoi(jobsPids[j]),SIGKILL);
+        }
+        }
         printf("----Saliendo...----\n");
         exit(0);
         return 1;
@@ -32,7 +42,7 @@ int comprobarInternos(tline *line)
     // Se comprueba si el usuario a introducido el mandato jobs
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "jobs"))
     {
-
+        jobs(jobsCommands,jobsPids, countJobs);
         return 1;
     }
     // Se comprueba si el usuario a introducido el mandato umask
@@ -81,8 +91,14 @@ int cd(tline *line)
 	return 0;
 }
 
-int jobs()
+int jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
 {
+    int i;
+    printf("Pid     Status      Command \n");
+    for(i = 0; i < *countJobs; i++){
+            printf("%d      Running     %s \n",jobsPids[i],jobsCommands[i]);
+    }
+
 }
 int fg()
 {
@@ -91,14 +107,15 @@ int umask()
 {
 }
 
-int ejecutarComandoExterno(tline * line){
+int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids[],int * countJobs){
     pid_t  pid;
 	int status;		
 		
 	pid = fork();
+
 	if (pid < 0) { /* Error */
 		fprintf(stderr, "Falló el fork().\n%s\n", strerror(errno));
-		exit(1);
+		return 1;
 	}
 	else if (pid == 0) { /* Proceso Hijo */
 		execvp(line->commands[0].filename, line->commands[0].argv);
@@ -107,18 +124,24 @@ int ejecutarComandoExterno(tline * line){
 		return 1;
 		
 	}
-	else { /* Proceso Padre. 
-    		- WIFEXITED(estadoHijo) es 0 si el hijo ha terminado de una manera anormal (caida, matado con un kill, etc). 
-		Distinto de 0 si ha terminado porque ha hecho una llamada a la función exit()
-    		- WEXITSTATUS(estadoHijo) devuelve el valor que ha pasado el hijo a la función exit(), siempre y cuando la 
-		macro anterior indique que la salida ha sido por una llamada a exit(). */
-		wait (&status);
+	else { 
+        if(!line->background){
+		wait(&status);
 		if (WIFEXITED(status) != 0)
 			if (WEXITSTATUS(status) != 0)
 				printf("El comando no se ejecutó correctamente\n");
-		return 0;
+        }
+        else{
+            strcpy(jobsCommands[*countJobs],line->commands[line->ncommands - 1].argv[0]);
+            jobsPids[*countJobs] = pid;
+            *countJobs = *countJobs + 1;
+            printf("%d      %s \n",jobsPids[*countJobs-1],jobsCommands[*countJobs-1]);
+            waitpid(pid,NULL,0);
+        }
+        return 0;
 	}
-}
+    }
+
 int main(void)
 {
     // Los procesos SIGINT Y SIGQUIT solo deben funcionar con los procesos que esten dentro de la shell y no con la propia shell
@@ -131,8 +154,16 @@ int main(void)
     // Variable encargada de recoger la información tokenizada que se ha introducido
     tline * line;
 
-    int i,existencia;
+    // Variables encargadas de recoger los pids y los nombres de los comandos que esten en background
+    char * jobsCommands[30];
+    for ( size_t i = 0;i < 30; i++){
+        jobsCommands[i] = (char *)malloc(1024 * sizeof(char));
+    }
+    pid_t * jobsPids = (pid_t *) malloc(sizeof(pid_t));
+
+    int i, existencia,countJobs;
     printf("msh:%s> ", getcwd(NULL,1024));
+    countJobs = 0;
     while (fgets(buffer, 1024, stdin))
     {
         existencia = 1;
@@ -152,8 +183,8 @@ int main(void)
             }
         }
         if (existencia){
-            if(!comprobarInternos(line)){
-                ejecutarComandoExterno(line);
+            if(!comprobarInternos(line,&jobsCommands,&jobsPids,&countJobs)){
+                ejecutarComandoExterno(line,&jobsCommands,&jobsPids,&countJobs);
             }
         }
         }
