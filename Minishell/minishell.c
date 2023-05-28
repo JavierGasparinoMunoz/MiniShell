@@ -121,9 +121,9 @@ int jobCount = 0;
 
 void verJobs(Jobs listaJobs[],int *numero)
 {
-    for (i = 0; i < (*numero); i++) // comprobamos todas las instrucciones en bg
+    for (int i = 0; i < (*numero); i++) // comprobamos todas las instrucciones en bg
     {
-        for (j = 0; j < ljobs[i].tamaño; j++) // comprobamos todos las partes de las instrucciones
+        for (int j = 0; j < ljobs[i].tamaño; j++) // comprobamos todos las partes de las instrucciones
         {
             printf("%d      Running     %s \n",listaJobs[i].pid[j],listaJobs[i].command[j]);
         }
