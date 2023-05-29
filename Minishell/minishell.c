@@ -11,6 +11,7 @@ typedef struct  {
     pid_t pid[100];
     int tamanio;
     char command[100]; //Numero maximo del comando a 100
+    int finished[100];
 } Jobs;
 
 // Funcion encargada de comprobar si lo introducido por el usuario es un comando interno de la minishell
@@ -46,7 +47,7 @@ int comprobarInternos(tline *line,int numBg, Jobs listaJobs[])
     // Se comprueba si el usuario a introducido el mandato jobs
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "jobs"))
     {
-        verJobs();
+        verJobs(listaJobs,&numBg,1);
         return 1;
     }
     // Se comprueba si el usuario a introducido el mandato umask
@@ -120,13 +121,47 @@ int cd(tline *line)
 
 int jobCount = 0;
 
-void verJobs(Jobs listaJobs[],int *numero)
+void verJobs(Jobs listaJobs[],int *numero,int c)
 {
+    int z, count;
+    int terminado[100];
+    z = 0;
     for (int i = 0; i < (*numero); i++) // comprobamos todas las instrucciones en bg
     {
+        count = 0; 
         for (int j = 0; j < listaJobs[i].tamanio; j++) // comprobamos todos las partes de las instrucciones
         {
-            printf("%d      Running     %s \n",i,listaJobs[i].command);
+            if ((waitpid(listaJobs[i].pids[j], NULL, WNOHANG) == listaJobs[i].pids[j]) || (listaJobs[i].terminado[j])) // compruebamos si un pid ha terminado
+            {
+                count++;
+                listaJobs[i].finished[j] = 1;
+            }
+           else
+            {
+                if (control) // control es una variable que se activara en el jobs pero no al combrobar despues de una instruccion si algo ha acabado
+                {
+                    printf("[%d] Running        %s", i, listaJobs[i].command);
+                }
+                break;
+            }
+        }
+        if (cont == ljobs[i].tamaño)
+        {
+            printf("[%d]  Done        %s", i, listaJobs[i].command);
+            terminado[p] = i;
+            z++;
+        }
+    }
+    if (p > 0)
+    {
+        while (p > 0)
+        {
+            for (j = terminado[0]; j <= (*numero); j++)
+            {
+                listaJobs[j] = listaJobs[j + 1];
+            }
+            *numero = *numero - 1;
+            z--;
         }
     }
 }
@@ -228,8 +263,9 @@ int main(void)
             ejecutarComandoExterno(line,listaJobs,numBg);
         }
         
-
+        verJobs(listaJobs,&numBg,0);
         printf("msh:%s> ", getcwd(NULL,1024));
+
     }
     return 0;
 }
