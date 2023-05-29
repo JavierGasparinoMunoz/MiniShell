@@ -11,7 +11,7 @@ typedef struct  {
     pid_t pid[100];
     int tamanio;
     char command[100]; //Numero maximo del comando a 100
-    int finished[100];
+    int finished[100]; //sirve para comprobar numero de pids terminados
 } Jobs;
 
 // Funcion encargada de comprobar si lo introducido por el usuario es un comando interno de la minishell
@@ -121,48 +121,41 @@ int cd(tline *line)
 
 int jobCount = 0;
 
-void verJobs(Jobs listaJobs[],int *numero,int c)
-{
-    int i,j,z, count;
+void verJobs(Jobs listaJobs[], int* numero, int c) {
+    int z, count;
     int terminado[100];
     z = 0;
-    for (i = 0; i < (*numero); i++) // comprobamos todas las instrucciones en bg
-    {
+    
+    for (int i = 0; i < (*numero); i++) {
         count = 0; 
-        for (j = 0; j < listaJobs[i].tamanio; j++) // comprobamos todos las partes de las instrucciones
-        {
-            if ((waitpid(listaJobs[i].pid[j], NULL, WNOHANG) == listaJobs[i].pid[j]) || (listaJobs[i].finished[j])) // compruebamos si un pid ha terminado
-            {
+        
+        for (int j = 0; j < listaJobs[i].tamanio; j++) {
+            if ((waitpid(listaJobs[i].pid[j], NULL, WNOHANG) == listaJobs[i].pid[j]) || (listaJobs[i].finished[j])) {
                 count++;
                 listaJobs[i].finished[j] = 1;
-            }
-           else
-            {
-                if (c) // control es una variable que se activara en el jobs pero no al combrobar despues de una instruccion si algo ha acabado
-                {
+            } else {
+                if (c) {
                     printf("[%d] Running        %s", i, listaJobs[i].command);
                 }
                 break;
             }
         }
-        if (count == listaJobs[i].tamanio)
-        {
+        
+        if (count == listaJobs[i].tamanio) {
             printf("[%d]  Done        %s", i, listaJobs[i].command);
             terminado[z] = i;
             z++;
         }
     }
-    if (z > 0)
-    {
-        while (z > 0)
-        {
-            for (j = terminado[0]; j <= (*numero); j++)
-            {
+    
+    if (z > 0) {
+        for (int i = 0; i < z; i++) {
+            for (j = terminado[i]; j < (*numero) - 1; j++) {
                 listaJobs[j] = listaJobs[j + 1];
             }
-            *numero = *numero - 1;
-            z--;
         }
+        
+        *numero = *numero - z;
     }
 }
 
