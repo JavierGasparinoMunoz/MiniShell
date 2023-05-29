@@ -14,7 +14,6 @@ int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int
     if (!strcmp(line->commands[line->ncommands - 1].argv[0], "exit"))
     {   
         execute_exit(jobsCommands,jobsPids,countJobs);
-
     }
     // Se comprueba si el usuario a introducido el mandato cd
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "cd"))
@@ -154,10 +153,7 @@ void execute_exit(char * jobsCommands[], pid_t * jobsPids[], int * countJobs){
         for(j = 0; j < *countJobs; j++){
             kill(jobsPids[j],SIGKILL);
             free(jobsCommands[j]);
-            free(jobsPids[j]);
         }
-	free(jobsCommands);
-        free(jobsPids);
         }
         printf("----Saliendo...----\n");
         exit(0);
