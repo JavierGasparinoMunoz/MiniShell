@@ -122,15 +122,13 @@ int cd(tline *line)
 int jobCount = 0;
 
 void verJobs(Jobs listaJobs[], int* numero, int c) {
-    int z, count;
     int terminado[100];
-    z = 0;
+    int z = 0;
     
-    for (int i = 0; i < (*numero); i++) {
-        count = 0; 
-        
+    for (int i = 0; i < *numero; i++) {
+        int count = 0;    
         for (int j = 0; j < listaJobs[i].tamanio; j++) {
-            if ((waitpid(listaJobs[i].pid[j], NULL, WNOHANG) == listaJobs[i].pid[j]) || (listaJobs[i].finished[j])) {
+            if ((waitpid(listaJobs[i].pid[j], NULL, WNOHANG) == listaJobs[i].pid[j]) || listaJobs[i].finished[j]) {
                 count++;
                 listaJobs[i].finished[j] = 1;
             } else {
@@ -143,19 +141,18 @@ void verJobs(Jobs listaJobs[], int* numero, int c) {
         
         if (count == listaJobs[i].tamanio) {
             printf("[%d]  Done        %s", i, listaJobs[i].command);
-            terminado[z] = i;
-            z++;
+            terminado[z++] = i;
         }
     }
     
     if (z > 0) {
         for (int i = 0; i < z; i++) {
-            for (j = terminado[i]; j < (*numero) - 1; j++) {
+            for (int j = terminado[i]; j < (*numero) - 1; j++) {
                 listaJobs[j] = listaJobs[j + 1];
             }
         }
         
-        *numero = *numero - z;
+        (*numero) -= z;
     }
 }
 
