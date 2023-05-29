@@ -123,38 +123,38 @@ int jobCount = 0;
 
 void verJobs(Jobs listaJobs[],int *numero,int c)
 {
-    int z, count;
+    int i,j,z, count;
     int terminado[100];
     z = 0;
-    for (int i = 0; i < (*numero); i++) // comprobamos todas las instrucciones en bg
+    for (i = 0; i < (*numero); i++) // comprobamos todas las instrucciones en bg
     {
         count = 0; 
-        for (int j = 0; j < listaJobs[i].tamanio; j++) // comprobamos todos las partes de las instrucciones
+        for (j = 0; j < listaJobs[i].tamanio; j++) // comprobamos todos las partes de las instrucciones
         {
-            if ((waitpid(listaJobs[i].pids[j], NULL, WNOHANG) == listaJobs[i].pids[j]) || (listaJobs[i].terminado[j])) // compruebamos si un pid ha terminado
+            if ((waitpid(listaJobs[i].pid[j], NULL, WNOHANG) == listaJobs[i].pid[j]) || (listaJobs[i].finished[j])) // compruebamos si un pid ha terminado
             {
                 count++;
                 listaJobs[i].finished[j] = 1;
             }
            else
             {
-                if (control) // control es una variable que se activara en el jobs pero no al combrobar despues de una instruccion si algo ha acabado
+                if (c) // control es una variable que se activara en el jobs pero no al combrobar despues de una instruccion si algo ha acabado
                 {
                     printf("[%d] Running        %s", i, listaJobs[i].command);
                 }
                 break;
             }
         }
-        if (cont == ljobs[i].tamaño)
+        if (count == listaJobs[i].tamanio)
         {
             printf("[%d]  Done        %s", i, listaJobs[i].command);
-            terminado[p] = i;
+            terminado[z] = i;
             z++;
         }
     }
-    if (p > 0)
+    if (z > 0)
     {
-        while (p > 0)
+        while (z > 0)
         {
             for (j = terminado[0]; j <= (*numero); j++)
             {
