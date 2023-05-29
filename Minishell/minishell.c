@@ -124,20 +124,20 @@ void verJobs(Jobs listaJobs[],int *numero)
 {
     for (int i = 0; i < (*numero); i++) // comprobamos todas las instrucciones en bg
     {
-        for (int j = 0; j < ljobs[i].tamaño; j++) // comprobamos todos las partes de las instrucciones
+        for (int j = 0; j < listaJobs[i].tamanio; j++) // comprobamos todos las partes de las instrucciones
         {
-            printf("%d      Running     %s \n",listaJobs[i].pid[j],listaJobs[i].command[j]);
+            printf("%d      Running     %s \n",i,listaJobs[i].command);
         }
     }
 }
 
-void exitExecute(int nunBg,Jobs listaJobs[]){
+void exitExecute(int numBg,Jobs listaJobs[]){
     printf("Saliendo...");
     for (int  i = 0; i < numBg; i++)
     {
         for (int j = 0; j < listaJobs[i].tamanio; j++)
         {
-            kill(listaJobs[i].pid[j],9)
+            kill(listaJobs[i].pid[j],9);
         }
     }
     free(listaJobs);
@@ -153,7 +153,7 @@ int umask()
 }
 
 int ejecutarComandoExterno(tline * line, Jobs **listaJobss,int num){
-    Jobs *listaJobs[] = (Jobs *) listaJobss;
+    Jobs *listaJobs = (Jobs *) listaJobss;
     pid_t  pid;
 	int status;		
     int pipe1[2],pipe2[2];
@@ -197,7 +197,7 @@ int main(void)
 
     //Variables que contaran el numero de procesos en segundo plano, y variable que los guarda
     int numBg;
-    Jobs *listaJobs[] = malloc(sizeof(Jobs)*100);
+    Jobs *listaJobs = malloc(sizeof(Jobs)*100);
 
     int i,existencia;
     printf("msh:%s> ", getcwd(NULL,1024));
