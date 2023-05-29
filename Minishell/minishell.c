@@ -9,25 +9,12 @@
 // Funcion encargada de comprobar si lo introducido por el usuario es un comando interno de la minishell
 int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int * countJobs, mode_t *mascara)
 {
-    int i, j,f;
+    int i, j;
     // Se comprueba si el usuario a introducido el mandato exit
     if (!strcmp(line->commands[line->ncommands - 1].argv[0], "exit"))
     {   
-        if(!*countJobs == 0){
-        printf("funciona");
-        for (i = 0; i < *countJobs; i++){
-            free(jobsCommands[i]);
-        }
-        for(j = 0; j < *countJobs; j++){
-            kill(jobsPids[j],9);
-        }
-        for (f = 0; f < *countJobs; f++){
-            free(jobsPids[f]);
-        }
-        }
-        printf("----Saliendo...----\n");
-        exit(0);
-        return 1;
+        execute_exit(jobsCommands,jobsPids,countJobs);
+
     }
     // Se comprueba si el usuario a introducido el mandato cd
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "cd"))
@@ -156,11 +143,25 @@ int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids
             jobsPids[*countJobs] = pid;
             *countJobs = *countJobs + 1;
             printf("%d      %s \n",jobsPids[*countJobs-1],jobsCommands[*countJobs-1]);
-            waitpid(pid,NULL,0);
         }
-        return 0;
 	}
+   return 0;	
     }
+    
+void execute_exit(char * jobsCommands[], pid_t * jobsPids[], int * countJobs){
+  int j;
+  if(*countJobs > 0){
+        for(j = 0; j < *countJobs; j++){
+            kill(jobsPids[j],SIGKILL);
+            free(jobsCommands[j]);
+            free(jobsPids[j]);
+        }
+	free(jobsCommands);
+        free(jobsPids);
+        }
+        printf("----Saliendo...----\n");
+        exit(0);
+}  
 
 int main(void)
 {
@@ -177,16 +178,22 @@ int main(void)
     // Variables encargadas de recoger los pids y los nombres de los comandos que esten en background
     char * jobsCommands[30];
     
+    int i, existencia,countJobs;
+    
     for ( size_t i = 0;i < 30; i++){
         jobsCommands[i] = (char *)malloc(1024 * sizeof(char));
     }
-    pid_t * jobsPids = (pid_t *) malloc(sizeof(pid_t));
+    pid_t * jobsPids[30];
+    
+    for (size_t i = 0;i < 30; i++){
+        jobsPids[i] = (pid_t *)malloc(sizeof(pid_t));
+    }
 
+    	
     // Variable encargada de recoger la mascara que se posee
     mode_t mascara = 18;
     umask(18);
     
-    int i, existencia,countJobs;
     printf("msh:%s> ", getcwd(NULL,1024));
     countJobs = 0;
     while (fgets(buffer, 1024, stdin))
@@ -194,6 +201,17 @@ int main(void)
         existencia = 1;
    
         line = tokenize(buffer);
+        
+        
+        for(i=0;i<countJobs;i++){
+          if((waitpid(jobsPids[i],NULL,WNOHANG)!=0)){
+             if(i!=countJobs-1){
+             jobsPids[i] = jobsPids[i+1];
+             jobsCommands[i] = jobsCommands[i+1];
+             } 
+          countJobs = countJobs - 1; 
+          } 
+        }
 
         // Se comprueba si el usuario a introducido un enter, en ese caso se continuaria la ejecución mostrando el prompt
         if(line->ncommands >=1)
