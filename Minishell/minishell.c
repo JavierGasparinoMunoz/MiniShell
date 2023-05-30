@@ -5,23 +5,15 @@
 #include <fcntl.h>
 #include "parser.h"
 #include <errno.h>
-#include <unistd.h>
-
-typedef struct  {
-    pid_t pid[100];
-    int tamanio;
-    char command[100]; //Numero maximo del comando a 100
-    int finished[100]; //sirve para comprobar numero de pids terminados
-} Jobs;
 
 // Funcion encargada de comprobar si lo introducido por el usuario es un comando interno de la minishell
-int comprobarInternos(tline *line,int numBg, Jobs listaJobs[])
+int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int * countJobs, mode_t *mascara)
 {
+    int i, j;
     // Se comprueba si el usuario a introducido el mandato exit
     if (!strcmp(line->commands[line->ncommands - 1].argv[0], "exit"))
-    {    
-        exitExecute(numBg,listaJobs);
-        return 1;
+    {   
+        execute_exit(jobsCommands,jobsPids,countJobs);
     }
     // Se comprueba si el usuario a introducido el mandato cd
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "cd"))
@@ -32,59 +24,27 @@ int comprobarInternos(tline *line,int numBg, Jobs listaJobs[])
     // Se comprueba si el usuario a introducido el mandato fg
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "fg"))
     {
-        if (numBg > 0){
-            if (line->commands->argc>1){
-                
-            } else {
-                doFg();
-                numBg--;
-            }
-        } else {
-            printf("Mal input en fg");
-        }
+
         return 1;
     }
     // Se comprueba si el usuario a introducido el mandato jobs
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "jobs"))
     {
-        verJobs(listaJobs,&numBg,1);
+        jobs(jobsCommands,jobsPids, countJobs);
         return 1;
     }
     // Se comprueba si el usuario a introducido el mandato umask
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "umask"))
     {
-
+	execute_umask(mascara,line);
         return 1;
     }
     return 0;
 }
 
-void redireccion(char* in, char* out, char* err){
-    FILE *fIn,*fOut,*fErr;
-    if (in != NULL){
-        fIn = fopen(in,"r");
-        if (fIn != NULL){
-            dup2(fileno(fIn),STDIN_FILENO);
-        } else {
-            printf("Error al redireccionar a entrada estandar");
-            printf(stderr,"%s:No existe el fichero",in);
-            exit(1);
-        }
-        fclose(fIn);
-    }
-    if (out != NULL){
-        fOut = fopen(out,"w");
-        dup2(fileno(fOut),STDOUT_FILENO);      
-        fclose(fOut);
-    }
-    if (err!=NULL){
-        fErr = fopen(err,"w");
-        dup2(fileno(fErr),STDERR_FILENO);
-        fclose(fErr);
-    }
-}
 
-//Función que recoge el codigo relacionado con el comando cd
+
+//Función que correcoge el codigo relacionado con el comando cd
 int cd(tline *line)
 {
     char *dir;
@@ -119,75 +79,77 @@ int cd(tline *line)
 	return 0;
 }
 
-int jobCount = 0;
+int jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
+{
+    int i;
+    printf("Pid     Status      Command \n");
+    for(i = 0; i < *countJobs; i++){
+            printf("%d      Running     %s \n",jobsPids[i],jobsCommands[i]);
+    }
 
-void verJobs(Jobs listaJobs[], int* numero, int c) {
-    int terminado[100];
-    int z = 0;
-    
-    for (int i = 0; i < *numero; i++) {
-        int count = 0;    
-        for (int j = 0; j < listaJobs[i].tamanio; j++) {
-            if ((waitpid(listaJobs[i].pid[j], NULL, WNOHANG) == listaJobs[i].pid[j]) || listaJobs[i].finished[j]) {
-                count++;
-                listaJobs[i].finished[j] = 1;
-            } else {
-                if (c) {
-                    printf("[%d] Running        %s", i, listaJobs[i].command);
+}
+void fg(char * jobsCommands[], pid_t * jobsPids[],int * countJobs)
+{
+    int i, j;
+
+    int numero = *countJobs;
+    tcommand *com = NULL; // Si es necesario, reemplaza esta variable con el objeto tcommand correspondiente
+
+    if (com->argc == 1) {
+        for (i = 0; i < numero; i++) {
+            waitpid(jobsPids[numero - 1][i], NULL, 0);
+        }
+    } else {
+        int index = atoi(com->argv[1]);
+
+        for (i = 0; i < numero; i++) {
+            if (i == index) {
+                for (int k = 0; k < numero; k++) {
+                    waitpid(jobsPids[i][k], NULL, 0);
                 }
-                break;
             }
         }
-        
-        if (count == listaJobs[i].tamanio) {
-            printf("[%d]  Done        %s", i, listaJobs[i].command);
-            terminado[z++] = i;
+
+        for (j = index; j < numero - 1; j++) {
+            jobsCommands[j] = jobsCommands[j + 1];
+            jobsPids[j] = jobsPids[j + 1];
         }
-    }
-    
-    if (z > 0) {
-        for (int i = 0; i < z; i++) {
-            for (int j = terminado[i]; j < (*numero) - 1; j++) {
-                listaJobs[j] = listaJobs[j + 1];
-            }
-        }
-        
-        (*numero) -= z;
+
+        (*countJobs)--;
     }
 }
 
-void exitExecute(int numBg,Jobs listaJobs[]){
-    printf("Saliendo...");
-    for (int  i = 0; i < numBg; i++)
-    {
-        for (int j = 0; j < listaJobs[i].tamanio; j++)
-        {
-            kill(listaJobs[i].pid[j],9);
-        }
-    }
-    free(listaJobs);
-    exit(0);
-}
-void doFg()
+int execute_umask(mode_t *mascara,tline *line)
 {
-    
+   int octal_mask;
+   int ceros = 4;
+   int aux = *mascara;
+   if(line->commands[0].argc > 2)
+	{
+	  fprintf(stderr,"No se pueden introudcir más de dos argumentos\n");
+	  return 1;
+	}
+   if(line->commands[0].argc == 1){
+      printf("Valor de la mascara: %o\n",*mascara);
+      return 0;
+   }
+   else{
+      octal_mask = strtol(line->commands[0].argv[1],NULL,8);
+      umask(octal_mask);
+      printf("Valor de la mascara:%o\n",octal_mask);
+      *mascara = octal_mask;
+      return 0;
+   }
 }
-
-int umask()
-{
-}
-
-int ejecutarComandoExterno(tline * line, Jobs **listaJobss,int num){
-    Jobs *listaJobs = (Jobs *) listaJobss;
+int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids[],int * countJobs){
     pid_t  pid;
 	int status;		
-    int pipe1[2],pipe2[2];
-    pid_t *pidAux = malloc(line->ncommands);
 		
 	pid = fork();
+
 	if (pid < 0) { /* Error */
 		fprintf(stderr, "Falló el fork().\n%s\n", strerror(errno));
-		exit(1);
+		return 1;
 	}
 	else if (pid == 0) { /* Proceso Hijo */
 		execvp(line->commands[0].filename, line->commands[0].argv);
@@ -196,18 +158,35 @@ int ejecutarComandoExterno(tline * line, Jobs **listaJobss,int num){
 		return 1;
 		
 	}
-	else { /* Proceso Padre. 
-    		- WIFEXITED(estadoHijo) es 0 si el hijo ha terminado de una manera anormal (caida, matado con un kill, etc). 
-		Distinto de 0 si ha terminado porque ha hecho una llamada a la función exit()
-    		- WEXITSTATUS(estadoHijo) devuelve el valor que ha pasado el hijo a la función exit(), siempre y cuando la 
-		macro anterior indique que la salida ha sido por una llamada a exit(). */
-		wait (&status);
+	else { 
+        if(!line->background){
+		wait(&status);
 		if (WIFEXITED(status) != 0)
 			if (WEXITSTATUS(status) != 0)
 				printf("El comando no se ejecutó correctamente\n");
-		return 0;
+        }
+        else{
+            strcpy(jobsCommands[*countJobs],line->commands[line->ncommands - 1].argv[0]);
+            jobsPids[*countJobs] = pid;
+            *countJobs = *countJobs + 1;
+            printf("%d      %s \n",jobsPids[*countJobs-1],jobsCommands[*countJobs-1]);
+        }
 	}
-}
+   return 0;	
+    }
+    
+void execute_exit(char * jobsCommands[], pid_t * jobsPids[], int * countJobs){
+  int j;
+  if(*countJobs > 0){
+        for(j = 0; j < *countJobs; j++){
+            kill(jobsPids[j],SIGKILL);
+            free(jobsCommands[j]);
+        }
+        }
+        printf("----Saliendo...----\n");
+        exit(0);
+}  
+
 int main(void)
 {
     // Los procesos SIGINT Y SIGQUIT solo deben funcionar con los procesos que esten dentro de la shell y no con la propia shell
@@ -220,17 +199,43 @@ int main(void)
     // Variable encargada de recoger la información tokenizada que se ha introducido
     tline * line;
 
-    //Variables que contaran el numero de procesos en segundo plano, y variable que los guarda
-    int numBg;
-    Jobs *listaJobs = malloc(sizeof(Jobs)*100);
+    // Variables encargadas de recoger los pids y los nombres de los comandos que esten en background
+    char * jobsCommands[30];
+    
+    int i, existencia,countJobs;
+    
+    for ( size_t i = 0;i < 30; i++){
+        jobsCommands[i] = (char *)malloc(1024 * sizeof(char));
+    }
+    pid_t * jobsPids[30];
+    
+    for (size_t i = 0;i < 30; i++){
+        jobsPids[i] = (pid_t *)malloc(sizeof(pid_t));
+    }
 
-    int i,existencia;
+    	
+    // Variable encargada de recoger la mascara que se posee
+    mode_t mascara = 18;
+    umask(18);
+    
     printf("msh:%s> ", getcwd(NULL,1024));
+    countJobs = 0;
     while (fgets(buffer, 1024, stdin))
     {
         existencia = 1;
    
         line = tokenize(buffer);
+        
+        
+        for(i=0;i<countJobs;i++){
+          if((waitpid(jobsPids[i],NULL,WNOHANG)!=0)){
+             if(i!=countJobs-1){
+             jobsPids[i] = jobsPids[i+1];
+             jobsCommands[i] = jobsCommands[i+1];
+             } 
+          countJobs = countJobs - 1; 
+          } 
+        }
 
         // Se comprueba si el usuario a introducido un enter, en ese caso se continuaria la ejecución mostrando el prompt
         if(line->ncommands >=1)
@@ -245,17 +250,13 @@ int main(void)
             }
         }
         if (existencia){
-            if(!comprobarInternos(line,numBg,listaJobs)){
-                ejecutarComandoExterno(line,listaJobs,numBg);
-            } 
+            if(!comprobarInternos(line,&jobsCommands,&jobsPids,&countJobs,&mascara)){
+                ejecutarComandoExterno(line,&jobsCommands,&jobsPids,&countJobs);
+            }
         }
-        } else {
-            ejecutarComandoExterno(line,listaJobs,numBg);
         }
-        
-        verJobs(listaJobs,&numBg,0);
-        printf("msh:%s> ", getcwd(NULL,1024));
 
+        printf("msh:%s> ", getcwd(NULL,1024));
     }
     return 0;
 }
