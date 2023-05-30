@@ -24,7 +24,10 @@ int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int
     // Se comprueba si el usuario a introducido el mandato fg
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "fg"))
     {
-
+    	if (countJobs != NULL){
+    		fg(jobsCommands,jobsPids,countJobs,line);
+    		//execvp(line->commands[0].filename, line->commands[0].argv);
+    	}
         return 1;
     }
     // Se comprueba si el usuario a introducido el mandato jobs
@@ -88,19 +91,16 @@ int jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
     }
 
 }
-void fg(char * jobsCommands[], pid_t * jobsPids[],int * countJobs)
-{
+void fg(char *jobsCommands[], pid_t *jobsPids[], int *countJobs, tline *line) {
     int i, j;
-
     int numero = *countJobs;
-    tcommand *com = NULL; // Si es necesario, reemplaza esta variable con el objeto tcommand correspondiente
 
-    if (com->argc == 1) {
+    if (line->commands[0].argc == 1) {
         for (i = 0; i < numero; i++) {
             waitpid(jobsPids[numero - 1][i], NULL, 0);
         }
     } else {
-        int index = atoi(com->argv[1]);
+        int index = atoi(line->commands[0].argv[1]);
 
         for (i = 0; i < numero; i++) {
             if (i == index) {
@@ -110,9 +110,9 @@ void fg(char * jobsCommands[], pid_t * jobsPids[],int * countJobs)
             }
         }
 
-        for (j = index; j < numero - 1; j++) {
-            jobsCommands[j] = jobsCommands[j + 1];
-            jobsPids[j] = jobsPids[j + 1];
+        for (i = index; i < numero - 1; i++) {
+            jobsCommands[i] = jobsCommands[i + 1];
+            jobsPids[i] = jobsPids[i + 1];
         }
 
         (*countJobs)--;
@@ -121,7 +121,7 @@ void fg(char * jobsCommands[], pid_t * jobsPids[],int * countJobs)
 
 int execute_umask(mode_t *mascara,tline *line)
 {
-   int octal_mask;
+   int octal_mask = 0;
    int ceros = 4;
    int aux = *mascara;
    if(line->commands[0].argc > 2)
@@ -130,9 +130,19 @@ int execute_umask(mode_t *mascara,tline *line)
 	  return 1;
 	}
    if(line->commands[0].argc == 1){
-      printf("Valor de la mascara: %o\n",*mascara);
+       if (aux == 0){
+          ceros-=1;
+       }
+       while (aux > 0){
+          aux /= 10;
+          ceros-=1;
+       }
+       for (; ceros > 0; ceros--){
+        printf("0");
+       }
+       printf("%i\n",*mascara);
       return 0;
-   }
+   } 
    else{
       octal_mask = strtol(line->commands[0].argv[1],NULL,8);
       umask(octal_mask);
