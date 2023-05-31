@@ -24,7 +24,10 @@ int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int
     // Se comprueba si el usuario a introducido el mandato fg
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "fg"))
     {
-
+    	if (countJobs != NULL){
+    		fg(jobsCommands,jobsPids,countJobs,line);
+    		//execvp(line->commands[0].filename, line->commands[0].argv);
+    	}
         return 1;
     }
     // Se comprueba si el usuario a introducido el mandato jobs
@@ -88,12 +91,31 @@ int jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
     }
 
 }
-int fg()
-{
+void fg(char *jobsCommands[], pid_t *jobsPids[], int *countJobs, tline *line) {
+    int i, j;
+    int numero = *countJobs;
+
+    if (line->commands[0].argc == 1) {
+            printf("%s \n",jobsCommands[*countJobs-1]);
+            waitpid(jobsPids[numero - 1], NULL, 0);
+        }
+    else {
+        int index = atoi(line->commands[0].argv[1]);
+        if(index <= *countJobs){
+            printf("%s \n",jobsCommands[index-1]);
+            waitpid(jobsPids[index-1], NULL, 0);    
+            }
+        else{
+            printf("Parametro fuera de los limites");
+        }    
+        
+
+    }
 }
+
 int execute_umask(mode_t *mascara,tline *line)
 {
-   int octal_mask;
+   int octal_mask = 0;
    int ceros = 4;
    int aux = *mascara;
    if(line->commands[0].argc > 2)
@@ -102,9 +124,19 @@ int execute_umask(mode_t *mascara,tline *line)
 	  return 1;
 	}
    if(line->commands[0].argc == 1){
-      printf("Valor de la mascara: %o\n",*mascara);
+       if (aux == 0){
+          ceros-=1;
+       }
+       while (aux > 0){
+          aux /= 10;
+          ceros-=1;
+       }
+       for (; ceros > 0; ceros--){
+        printf("0");
+       }
+       printf("%i\n",*mascara);
       return 0;
-   }
+   } 
    else{
       octal_mask = strtol(line->commands[0].argv[1],NULL,8);
       umask(octal_mask);
@@ -141,7 +173,7 @@ int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids
             strcpy(jobsCommands[*countJobs],line->commands[line->ncommands - 1].argv[0]);
             jobsPids[*countJobs] = pid;
             *countJobs = *countJobs + 1;
-            printf("%d      %s \n",jobsPids[*countJobs-1],jobsCommands[*countJobs-1]);
+            printf("[%d]     %d      %s \n",*countJobs,jobsPids[*countJobs-1],jobsCommands[*countJobs-1]);
         }
 	}
    return 0;	
