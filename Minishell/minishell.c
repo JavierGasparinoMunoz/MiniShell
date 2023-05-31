@@ -82,7 +82,7 @@ int cd(tline *line)
 	return 0;
 }
 
-int jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
+void jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
 {
     int i;
     printf("Pid     Status      Command \n");
@@ -147,32 +147,32 @@ int execute_umask(mode_t *mascara,tline *line)
 }
 
 int redireccion_Ficheros(char * in, char * out,char * err){
-   FILE *fIn, *fOut,*fErr;
+   FILE *file;
    if(in != NULL){
-      fIn = fopen(in, "r");
-      if(fIn == NULL){
+      file = fopen(in, "r");
+      if(file == NULL){
          printf("Error al abrir el archivo de entrada\n",strerror(errno));
       }
       else{
-         dup2(fileno(fIn),STDIN_FILENO);
+         dup2(fileno(file),STDIN_FILENO);
       }
-      fclose(fIn);
+      fclose(file);
       return 1;
    }
    else if(out !=NULL){
-      fOut = fopen(out,"w");
-      if(-1 == dup2(fileno(fOut),STDOUT_FILENO)){
+      file = fopen(out,"w");
+      if(-1 == dup2(fileno(file),STDOUT_FILENO)){
          printf("Error al abrir/crear el archivo\n",strerror(errno));
       }
-      fclose(fOut);
+      fclose(file);
       return 1;
    }
    else if(err != NULL){
-      fErr = fopen(err,"w");
-      if(-1 == dup2(fileno(fErr),STDERR_FILENO)){
+      file = fopen(err,"w");
+      if(-1 == dup2(fileno(file),STDERR_FILENO)){
          printf("Error al abrir/crear el archivo",strerror(errno));
       }
-      fclose(fErr);
+      fclose(file);
       return 1;
    }
    return 0;
