@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include "parser.h"
 #include <errno.h>
+#include <unistd.h>
 
 // Funcion encargada de comprobar si lo introducido por el usuario es un comando interno de la minishell
 int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int * countJobs, mode_t *mascara)
@@ -26,7 +27,6 @@ int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int
     {
     	if (countJobs != NULL){
     		fg(jobsCommands,jobsPids,countJobs,line);
-    		//execvp(line->commands[0].filename, line->commands[0].argv);
     	}
         return 1;
     }
@@ -145,6 +145,40 @@ int execute_umask(mode_t *mascara,tline *line)
       return 0;
    }
 }
+
+int redireccion_Ficheros(char * in, char * out,char * err){
+   FILE *fIn, *fOut,*fErr;
+   if(in != NULL){
+      fIn = fopen(in, "r");
+      if(fIn == NULL){
+         printf("Error al abrir el archivo de entrada\n",strerror(errno));
+      }
+      else{
+         dup2(fileno(fIn),STDIN_FILENO);
+      }
+      fclose(fIn);
+      return 1;
+   }
+   else if(out !=NULL){
+      fOut = fopen(out,"w");
+      if(-1 == dup2(fileno(fOut),STDOUT_FILENO)){
+         printf("Error al abrir/crear el archivo\n",strerror(errno));
+      }
+      fclose(fOut);
+      return 1;
+   }
+   else if(err != NULL){
+      fErr = fopen(err,"w");
+      if(-1 == dup2(fileno(fErr),STDERR_FILENO)){
+         printf("Error al abrir/crear el archivo",strerror(errno));
+      }
+      fclose(fErr);
+      return 1;
+   }
+   return 0;
+}
+
+
 int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids[],int * countJobs){
     pid_t  pid;
 	int status;		
@@ -156,11 +190,11 @@ int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids
 		return 1;
 	}
 	else if (pid == 0) { /* Proceso Hijo */
+		redireccion_Ficheros(line->redirect_input, line->redirect_output,line->redirect_error);
 		execvp(line->commands[0].filename, line->commands[0].argv);
 		//Si llega aquí es que se ha producido un error en el execvp
 		printf("Error al ejecutar el comando: %s\n", strerror(errno));
 		return 1;
-		
 	}
 	else { 
         if(!line->background){
