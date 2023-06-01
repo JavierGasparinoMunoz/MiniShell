@@ -147,9 +147,8 @@ int execute_umask(mode_t *mascara,tline *line)
          count+=1;
       }
       if (esNumero){
-          long int resultado = strtol(line->commands[0].argv[1],&comprobacionS,8);
+          octal_mask = strtol(line->commands[0].argv[1],&comprobacionS,8);
           if (*comprobacionS == '\0'){
-            octal_mask = strtol(line->commands[0].argv[1],NULL,8);
             umask(octal_mask);
             printf("Valor de la mascara:%o\n",octal_mask);
             *mascara = octal_mask;
