@@ -6,6 +6,7 @@
 #include "parser.h"
 #include <errno.h>
 #include <unistd.h>
+#include <ctype.h>
 
 // Funcion encargada de realizar el exit    
 void execute_exit(char * jobsCommands[], pid_t * jobsPids[], int * countJobs){
@@ -109,6 +110,11 @@ int execute_umask(mode_t *mascara,tline *line)
    
    int ceros = 4;
    int aux = *mascara;
+   int aux2;
+   
+   int esNumero = 1;
+   int count = 0;
+   char *comprobacionS;
    
    //Si se le pasa mas de dos argumento se muestra un mensaje de error
    if(line->commands[0].argc > 2)
@@ -133,11 +139,29 @@ int execute_umask(mode_t *mascara,tline *line)
    } 
    // Si se le pasa un argumento se cambia a octal y se modifica la mascara por el nuevo valor
    else{
-      octal_mask = strtol(line->commands[0].argv[1],NULL,8);
-      umask(octal_mask);
-      printf("Valor de la mascara:%o\n",octal_mask);
-      *mascara = octal_mask;
-      return 0;
+      int longitud = strlen(line->commands[0].argv[1]);
+      while((count < longitud) && esNumero){
+         if(!isdigit(line->commands[0].argv[1][count])){
+           esNumero = 0;
+         }
+         count+=1;
+      }
+      if (esNumero){
+          long int resultado = strtol(line->commands[0].argv[1],&comprobacionS,8);
+          if (*comprobacionS == '\0'){
+            octal_mask = strtol(line->commands[0].argv[1],NULL,8);
+            umask(octal_mask);
+            printf("Valor de la mascara:%o\n",octal_mask);
+            *mascara = octal_mask;
+            } else {
+             fprintf(stderr,"Se debe pasar un numero en octal \n");
+             return 1;
+            }
+      } else {
+        fprintf(stderr,"Se debe pasar un numero \n");
+        return 1;
+      }
+     return 0;
    }
 }
 
