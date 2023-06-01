@@ -7,10 +7,144 @@
 #include <errno.h>
 #include <unistd.h>
 
+// Funcion encargada de realizar el exit    
+void execute_exit(char * jobsCommands[], pid_t * jobsPids[], int * countJobs){
+  int j;
+  // Si hay procesos en background, se hace kill de los procesos y se libera la memoria de la lista que contiene el nombre de los comandos
+  if(*countJobs > 0){
+        for(j = 0; j < *countJobs; j++){
+            kill(jobsPids[j],SIGKILL);
+            free(jobsCommands[j]);
+        }
+        }
+        printf("----Saliendo...----\n");
+        exit(0);
+}  
+
+//Función que recoge el codigo relacionado con el comando cd
+int cd(tline *line)
+{
+    char *dir;
+
+	
+	// Si hay mas de dos argumentos, se muestra un mensaje de error
+	if(line->commands[0].argc > 2)
+	{
+	  fprintf(stderr,"No se pueden introudcir más de dos argumentos\n");
+	  return 1;
+	}
+	
+	// Si solo hay un argumento se cambia el directorio al directorio HOME
+	else if (line->commands[0].argc == 1)
+	{
+		dir = getenv("HOME");
+		if(dir == NULL)
+		{
+		  fprintf(stderr,"No existe la variable $HOME\n");	
+          return 1;
+		}
+	}
+	// Si se ha pasado un argumento, la direccion va a ser el argumento
+	else 
+	{
+		dir = line->commands[0].argv[1];
+	}
+	
+	// Comprobar si es un directorio
+	if (chdir(dir) != 0) {
+			fprintf(stderr,"Error al cambiar de directorio: %s\n", strerror(errno));  
+            return 1;
+	}
+
+	return 0;
+}
+
+//Funcion encargada de mostrar los procesos que estan en background
+void jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
+{
+    int i;
+    printf("Pid     Status      Command \n");
+    for(i = 0; i < *countJobs; i++){
+            printf("%d      Running     %s \n",jobsPids[i],jobsCommands[i]);
+    }
+
+}
+
+//Funcion que realiza el fg
+void fg(char *jobsCommands[], pid_t *jobsPids[], int *countJobs, tline *line) {
+    int numero = *countJobs;
+    
+    // Si hay mas de dos argumentos, se muestra un mensaje de error
+	if(line->commands[0].argc > 2)
+	{
+	  fprintf(stderr,"No se pueden introudcir dos o mas argumentos\n");
+	}
+    
+    // Si no se le pasa un argumento, se pasa a foreground el ultimo proceso que se paso a background
+    else if (line->commands[0].argc == 1) {
+            printf("%s \n",jobsCommands[*countJobs-1]);
+            waitpid(jobsPids[numero - 1], NULL, 0);
+        }
+        
+    // Si se le pasa un argumento se comprueba que el numero que se pasa por argumento si esta dentro de los limites de la lista de los procesos de bg y se pasa a fg    
+    else {
+        int index = atoi(line->commands[0].argv[1]);
+        if(index <= *countJobs){
+            printf("%s \n",jobsCommands[index-1]);
+            waitpid(jobsPids[index-1], NULL, 0);    
+            }
+        else{
+            fprintf(stderr,"Parametro fuera de los limites\n");
+        }    
+        
+
+    }
+}
+
+// Funcion que recoge el proceso de umask
+int execute_umask(mode_t *mascara,tline *line)
+{
+   // Variable que va a recoger el valor en octal
+   int octal_mask = 0;
+   
+   int ceros = 4;
+   int aux = *mascara;
+   
+   //Si se le pasa mas de dos argumento se muestra un mensaje de error
+   if(line->commands[0].argc > 2)
+	{
+	  fprintf(stderr,"No se pueden introudcir más de dos argumentos\n");
+	  return 1;
+	}
+   // Si no se le pasa ningun argumento, se va a mostrar la mascara en dicho momento. Se rellena con 0 si es necesario	
+   if(line->commands[0].argc == 1){
+       if (aux == 0){
+          ceros-=1;
+       }
+       while (aux > 0){
+          aux /= 10;
+          ceros-=1;
+       }
+       for (; ceros > 0; ceros--){
+        printf("0");
+       }
+       printf("%i\n",*mascara);
+      return 0;
+   } 
+   // Si se le pasa un argumento se cambia a octal y se modifica la mascara por el nuevo valor
+   else{
+      octal_mask = strtol(line->commands[0].argv[1],NULL,8);
+      umask(octal_mask);
+      printf("Valor de la mascara:%o\n",octal_mask);
+      *mascara = octal_mask;
+      return 0;
+   }
+}
+
+
 // Funcion encargada de comprobar si lo introducido por el usuario es un comando interno de la minishell
 int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int * countJobs, mode_t *mascara)
 {
-    int i, j;
     // Se comprueba si el usuario a introducido el mandato exit
     if (!strcmp(line->commands[line->ncommands - 1].argv[0], "exit"))
     {   
@@ -25,8 +159,12 @@ int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int
     // Se comprueba si el usuario a introducido el mandato fg
     else if (!strcmp(line->commands[line->ncommands - 1].argv[0], "fg"))
     {
-    	if (countJobs != NULL){
+    	// Si hay procesos en background entonces se puede hacer fg
+    	if (*countJobs > 0){
     		fg(jobsCommands,jobsPids,countJobs,line);
+    	}
+    	else{
+    	   fprintf(stderr,"No hay procesos en background en estos momentos\n");
     	}
         return 1;
     }
@@ -47,131 +185,49 @@ int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int
 
 
 
-//Función que correcoge el codigo relacionado con el comando cd
-int cd(tline *line)
-{
-    char *dir;
-	char buffer[512];
-	
-	if(line->commands[0].argc > 2)
-	{
-	  fprintf(stderr,"No se pueden introudcir más de dos argumentos\n");
-	  return 1;
-	}
-	
-	else if (line->commands[0].argc == 1)
-	{
-		dir = getenv("HOME");
-		if(dir == NULL)
-		{
-		  fprintf(stderr,"No existe la variable $HOME\n");	
-          return 1;
-		}
-	}
-	else 
-	{
-		dir = line->commands[0].argv[1];
-	}
-	
-	// Comprobar si es un directorio
-	if (chdir(dir) != 0) {
-			fprintf(stderr,"Error al cambiar de directorio: %s\n", strerror(errno));  
-            return 1;
-	}
 
-	return 0;
-}
 
-void jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
-{
-    int i;
-    printf("Pid     Status      Command \n");
-    for(i = 0; i < *countJobs; i++){
-            printf("%d      Running     %s \n",jobsPids[i],jobsCommands[i]);
-    }
-
-}
-void fg(char *jobsCommands[], pid_t *jobsPids[], int *countJobs, tline *line) {
-    int i, j;
-    int numero = *countJobs;
-
-    if (line->commands[0].argc == 1) {
-            printf("%s \n",jobsCommands[*countJobs-1]);
-            waitpid(jobsPids[numero - 1], NULL, 0);
-        }
-    else {
-        int index = atoi(line->commands[0].argv[1]);
-        if(index <= *countJobs){
-            printf("%s \n",jobsCommands[index-1]);
-            waitpid(jobsPids[index-1], NULL, 0);    
-            }
-        else{
-            printf("Parametro fuera de los limites");
-        }    
-        
-
-    }
-}
-
-int execute_umask(mode_t *mascara,tline *line)
-{
-   int octal_mask = 0;
-   int ceros = 4;
-   int aux = *mascara;
-   if(line->commands[0].argc > 2)
-	{
-	  fprintf(stderr,"No se pueden introudcir más de dos argumentos\n");
-	  return 1;
-	}
-   if(line->commands[0].argc == 1){
-       if (aux == 0){
-          ceros-=1;
-       }
-       while (aux > 0){
-          aux /= 10;
-          ceros-=1;
-       }
-       for (; ceros > 0; ceros--){
-        printf("0");
-       }
-       printf("%i\n",*mascara);
-      return 0;
-   } 
-   else{
-      octal_mask = strtol(line->commands[0].argv[1],NULL,8);
-      umask(octal_mask);
-      printf("Valor de la mascara:%o\n",octal_mask);
-      *mascara = octal_mask;
-      return 0;
-   }
-}
-
+// Funcion encargada de comprobar si se quiere realizar una redireccion de entrada o salida y la realizacion de la misma. Devuelve 0 si no se quiere redireccionar y 1 si
+// se ha redireccionado o ha habido algun error
 int redireccion_Ficheros(char * in, char * out,char * err){
    FILE *file;
+   // Si se quiere realizar una redireccion de entrada entonces...
    if(in != NULL){
+      // Se abre le fichero para lectura
       file = fopen(in, "r");
+      // Si el archivo es nulo, se muestra un mensaje de error. Esto ocurre si no se encuentra el archivo
       if(file == NULL){
-         printf("Error al abrir el archivo de entrada\n",strerror(errno));
+         fprintf(stderr,"Error al abrir el archivo de entrada\n");
       }
+      // Si el archivo existe, se realiza la lectura del archivo
       else{
          dup2(fileno(file),STDIN_FILENO);
       }
+      // Se cierra el archivo
       fclose(file);
       return 1;
    }
+   // Si se queire realizar una redireccion de salida entonces...
    else if(out !=NULL){
+      // Se abre el archivo para escritura
       file = fopen(out,"w");
+      // Si al realizar la escritura se genera algun error, se muestra el mensaje de error, sino no se muestra nada y se modifica/crea el archivo con la informacion correspondiente
       if(-1 == dup2(fileno(file),STDOUT_FILENO)){
-         printf("Error al abrir/crear el archivo\n",strerror(errno));
+         fprintf(stderr,"Error al abrir/crear el archivo\n");
       }
+      // Se cierra el fichero
       fclose(file);
       return 1;
    }
+   //Si se quiere realizar una redirrecion de error entonces...
    else if(err != NULL){
+      // Se abre el archivo para escritura
       file = fopen(err,"w");
+      // Si al realizar la escritura se genera algun error, se muestra el mensaje de error, sino no se muestra nada y se modifica/crea el archivo con la informacion correspondiente
       if(-1 == dup2(fileno(file),STDERR_FILENO)){
-         printf("Error al abrir/crear el archivo",strerror(errno));
+         fprintf(stderr,"Error al abrir/crear el archivo");
       }
+      // Se cierra el fichero
       fclose(file);
       return 1;
    }
@@ -197,12 +253,14 @@ int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids
 		return 1;
 	}
 	else { 
+	// En el caso en el que no se quiera realizar en background
         if(!line->background){
 		wait(&status);
 		if (WIFEXITED(status) != 0)
 			if (WEXITSTATUS(status) != 0)
 				printf("El comando no se ejecutó correctamente\n");
         }
+        // Si se quiere realizar el mandato en background, se introudce su pid y su nombre en la lista y se suma uno al contador de procesos en bg mostrando la info del mismo
         else{
             strcpy(jobsCommands[*countJobs],line->commands[line->ncommands - 1].argv[0]);
             jobsPids[*countJobs] = pid;
@@ -213,18 +271,8 @@ int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids
    return 0;	
     }
     
-void execute_exit(char * jobsCommands[], pid_t * jobsPids[], int * countJobs){
-  int j;
-  if(*countJobs > 0){
-        for(j = 0; j < *countJobs; j++){
-            kill(jobsPids[j],SIGKILL);
-            free(jobsCommands[j]);
-        }
-        }
-        printf("----Saliendo...----\n");
-        exit(0);
-}  
 
+// Funcion main
 int main(void)
 {
     // Los procesos SIGINT Y SIGQUIT solo deben funcionar con los procesos que esten dentro de la shell y no con la propia shell
@@ -254,17 +302,20 @@ int main(void)
     	
     // Variable encargada de recoger la mascara que se posee
     mode_t mascara = 18;
+    // Se cambia la mascara
     umask(18);
     
     printf("msh:%s> ", getcwd(NULL,1024));
+    //Se inicializa la variable que recoge la cantidad de procesos de background
     countJobs = 0;
+    
     while (fgets(buffer, 1024, stdin))
     {
         existencia = 1;
    
         line = tokenize(buffer);
         
-        
+        // En este for se comprueba si alguno de los procesos que estaban en bg ha acabado
         for(i=0;i<countJobs;i++){
           if((waitpid(jobsPids[i],NULL,WNOHANG)!=0)){
              if(i!=countJobs-1){
@@ -287,6 +338,7 @@ int main(void)
                 existencia = 0;
             }
         }
+        //Si existe el mandato que se ha pasado se comprueba si es un mandato interno o es un mandato externo
         if (existencia){
             if(!comprobarInternos(line,&jobsCommands,&jobsPids,&countJobs,&mascara)){
                 ejecutarComandoExterno(line,&jobsCommands,&jobsPids,&countJobs);
