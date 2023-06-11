@@ -181,8 +181,13 @@ void ejecutarPipes(int *countJobs,char* jobsCommands[], pid_t * jobsPids[],tline
         }
     }
 
+    //Comprobacion uno por uno de que existen los mandatos
     for (int i = 0; i < line->ncommands; i++){
-        if(line->commands[0].filename == NULL){
+    	if ((strcmp(line->commands[i].argv[0], "umask") == 0) || (strcmp(line->commands[i].argv[0], "cd") == 0) || (strcmp(line->commands[i].argv[0], "fg") == 0) || (strcmp(line->commands[i].argv[0], "jobs") == 0) || (strcmp(line->commands[i].argv[0], "exit") == 0)){
+    		continue;
+    	}
+    
+        if(line->commands[i].filename == NULL){
             fprintf(stderr,"%s:Mandato no encontrado\n",line->commands[0].argv[0]);
             comprobacion = 1;
         }
@@ -458,7 +463,7 @@ int main(void)
             }
         }
         //Si existe el mandato que se ha pasado se comprueba si es un mandato interno o es un mandato externo
-        if (existencia){
+        if (existencia && (line->ncommands == 1)){
             if(!comprobarInternos(line,&jobsCommands,&jobsPids,&countJobs,&mascara)){
                 ejecutarComandoExterno(line,&jobsCommands,&jobsPids,&countJobs);
             }
