@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <sys/stat.h>
 
 // Funcion encargada de realizar el exit    
 void execute_exit(char * jobsCommands[], pid_t * jobsPids[], int * countJobs){
@@ -66,7 +67,7 @@ void jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
     int i;
     printf("Pid     Status      Command \n");
     for(i = 0; i < *countJobs; i++){
-            printf("%d      Running     %s \n",jobsPids[i],jobsCommands[i]);
+            printf("[%d]      Running     %s \n",*countJobs,jobsCommands[i]);
     }
 
 }
@@ -134,7 +135,7 @@ int execute_umask(mode_t *mascara,tline *line)
        for (; ceros > 0; ceros--){
         printf("0");
        }
-       printf("%i\n",*mascara);
+       printf("%o\n",*mascara);
       return 0;
    } 
    // Si se le pasa un argumento se cambia a octal y se modifica la mascara por el nuevo valor
@@ -168,7 +169,6 @@ void ejecutarPipes(int *countJobs,char* jobsCommands[], pid_t * jobsPids[],tline
     pid_t *hijos;
     int pid;
     int **pipes;
-    int j;
     int comprobacion = 0;
 
     hijos = malloc(line->ncommands * sizeof(int));
@@ -341,6 +341,10 @@ int redireccion_Ficheros(char * in, char * out,char * err){
       }
       // Se cierra el fichero
       fclose(file);
+      
+      if(-1 == chmod(out, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)){
+           fprintf(stderr, "Error al establecer el permiso de lectura");
+      }
       return 1;
    }
    //Si se quiere realizar una redirrecion de error entonces...
