@@ -164,15 +164,15 @@ int execute_umask(mode_t *mascara,tline *line)
    }
 }
 
-void ejecutarPipes(int *countjobs){
+void ejecutarPipes(int *countJobs,char* jobsCommands[], pid_t * jobsPids[],tline *line){
     pid_t *hijos;
     int pid;
     int **pipes;
     int j;
-    int comprobacion;
+    int comprobacion = 0;
 
-    hijos = malloc(n * sizeof(int));
-    pipes = (int **) malloc ((n - 1) * sizeof(int *));
+    hijos = malloc(line->ncommands * sizeof(int));
+    pipes = (int **) malloc ((line->ncommands - 1) * sizeof(int *));
 
     for (int i = 0; i < line->ncommands-1; i++){
         pipes[i] = (int*) malloc(2*sizeof(int));
@@ -196,7 +196,7 @@ void ejecutarPipes(int *countjobs){
 				fprintf(stderr, "Falló el fork().\n%s\n", strerror(errno));
 				exit(1);
 			}
-            hijos[i]=pid;
+            hijos[j]=pid;
             if (pid == 0){
                 if (!line->background){
                     signal(SIGINT, SIG_DFL);
@@ -213,7 +213,7 @@ void ejecutarPipes(int *countjobs){
                 //Si no es ninguna de esas dos
                 } else {
                     dup2(pipes[j-1][0],STDIN_FILENO);
-                    dup2(pipes[j][1], STDOUT_FILENO)
+                    dup2(pipes[j][1], STDOUT_FILENO);
                 }
                 for(int k = 0; k < line->ncommands-1; k++)
 				{
@@ -240,17 +240,16 @@ void ejecutarPipes(int *countjobs){
         if(!line->background){
 				
 			for (int z = 0; z < line->ncommands; z++){
-				waitpid(hijos[j], NULL, 0);
+				waitpid(hijos[z], NULL, 0);
 			}
 		}else{
 			
             strcpy(jobsCommands[*countJobs],line->commands[line->ncommands - 1].argv[0]);
-            jobsPids[*countJobs] = (int*) hijos;
-            *countJobs = *countJobs + 1;
+            jobsPids[*countJobs] = hijos;
             for (int z = 0;z < line->ncommands;z++){
                 printf("[%d]\n",hijos[z]);
             }
-            countjobs++;
+            *countJobs = *countJobs + 1;
 		}
     } else {
         for(int x = 0; x < line->ncommands-1;x++){
@@ -466,7 +465,7 @@ int main(void)
         }
         }
         if (line->ncommands > 1){
-            ejecutarPipes(countJobs);
+            ejecutarPipes(&countJobs,&jobsCommands,&jobsPids,line);
         }
 
         printf("msh:%s> ", getcwd(NULL,1024));
