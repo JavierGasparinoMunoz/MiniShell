@@ -293,50 +293,49 @@ int comprobarInternos(tline *line, char* jobsCommands[], pid_t * jobsPids[], int
 // Funcion encargada de comprobar si se quiere realizar una redireccion de entrada o salida y la realizacion de la misma. Devuelve 0 si no se quiere redireccionar y 1 si
 // se ha redireccionado o ha habido algun error
 int redireccion_Ficheros(char * in, char * out,char * err){
-   FILE *file;
+   FILE *fileIn;
+   FILE *fileOut;
+   FILE *fileErr;
    // Si se quiere realizar una redireccion de entrada entonces...
    if(in != NULL){
       // Se abre le fichero para lectura
-      file = fopen(in, "r");
+      fileIn = fopen(in, "r");
       // Si el archivo es nulo, se muestra un mensaje de error. Esto ocurre si no se encuentra el archivo
-      if(file == NULL){
+      if(fileIn == NULL){
          fprintf(stderr,"Error al abrir el archivo de entrada\n");
       }
       // Si el archivo existe, se realiza la lectura del archivo
       else{
-         dup2(fileno(file),STDIN_FILENO);
+         dup2(fileno(fileIn),STDIN_FILENO);
       }
       // Se cierra el archivo
-      fclose(file);
-      return 1;
+      fclose(fileIn);
    }
    // Si se queire realizar una redireccion de salida entonces...
-   else if(out !=NULL){
+   if(out !=NULL){
       // Se abre el archivo para escritura
-      file = fopen(out,"w");
+      fileOut = fopen(out,"w");
       // Si al realizar la escritura se genera algun error, se muestra el mensaje de error, sino no se muestra nada y se modifica/crea el archivo con la informacion correspondiente
-      if(-1 == dup2(fileno(file),STDOUT_FILENO)){
+      if(-1 == dup2(fileno(fileOut),STDOUT_FILENO)){
          fprintf(stderr,"Error al abrir/crear el archivo\n");
       }
       // Se cierra el fichero
-      fclose(file);
+      fclose(fileOut);
       
       if(-1 == chmod(out, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)){
            fprintf(stderr, "Error al establecer el permiso de lectura");
       }
-      return 1;
    }
    //Si se quiere realizar una redirrecion de error entonces...
-   else if(err != NULL){
+   if(err != NULL){
       // Se abre el archivo para escritura
-      file = fopen(err,"w");
+      fileErr = fopen(err,"w");
       // Si al realizar la escritura se genera algun error, se muestra el mensaje de error, sino no se muestra nada y se modifica/crea el archivo con la informacion correspondiente
-      if(-1 == dup2(fileno(file),STDERR_FILENO)){
+      if(-1 == dup2(fileno(fileErr),STDERR_FILENO)){
          fprintf(stderr,"Error al abrir/crear el archivo");
       }
       // Se cierra el fichero
-      fclose(file);
-      return 1;
+      fclose(fileErr);
    }
    return 0;
 }
@@ -353,6 +352,10 @@ int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids
 		return 1;
 	}
 	else if (pid == 0) { /* Proceso Hijo */
+		if(!line ->background){
+		signal(SIGINT, SIG_DFL);
+                signal(SIGQUIT, SIG_DFL);
+                }
 		redireccion_Ficheros(line->redirect_input, line->redirect_output,line->redirect_error);
 		execvp(line->commands[0].filename, line->commands[0].argv);
 		//Si llega aquí es que se ha producido un error en el execvp
