@@ -9,6 +9,11 @@
 #include <ctype.h>
 #include <sys/stat.h>
 
+typedef struct {
+    int read;
+    int write;
+} PipeStruct;
+
 pid_t pidKill;
 
 void manejadorKiller(int senial){
@@ -177,14 +182,12 @@ int execute_umask(mode_t *mascara,tline *line)
 }
 
 void ejecutarPipes(int countJobs, char jobsCommands[], pid_t *jobsPids[], tline *line, int existencia) {
-    pid_t *hijos = malloc(line->ncommands * sizeof(pid_t));
-    int **pipes = malloc((line->ncommands - 1) * sizeof(int *));
+    pid_t *pids = malloc(line->ncommands * sizeof(pid_t));
+    PipeStruct *pipes = malloc((line->ncommands - 1) * sizeof(PipeStruct));
 
     for (int i = 0; i < line->ncommands - 1; i++) {
-        pipes[i] = malloc(2 * sizeof(int));
-        if (pipe(pipes[i]) < 0) {
-            fprintf(stderr, "Fallo en el pipe(): %s\n", strerror(errno));
-            exit(1);
+        if (pipe((int *)&pipes[i]) < 0) {
+            fprintf(stderr, "Falló en el pipe(): %s\n", strerror(errno));
         }
     }
 
@@ -193,9 +196,8 @@ void ejecutarPipes(int countJobs, char jobsCommands[], pid_t *jobsPids[], tline 
             pid_t pid = fork();
             if (pid < 0) {
                 fprintf(stderr, "Falló el fork(): %s\n", strerror(errno));
-                exit(1);
             }
-            hijos[j] = pid;
+            pids[j] = pid;
             if (pid == 0) {
                 if (!line->background) {
                     signal(SIGINT, SIG_DFL);
@@ -204,19 +206,18 @@ void ejecutarPipes(int countJobs, char jobsCommands[], pid_t *jobsPids[], tline 
 
                 if (j == 0) {
                     redireccion_Ficheros(line->redirect_input, NULL, NULL);
-                    dup2(pipes[0][1], STDOUT_FILENO);
+                    dup2(pipes[0].write, STDOUT_FILENO);
                 } else if (j == line->ncommands - 1) {
                     redireccion_Ficheros(NULL, line->redirect_output, line->redirect_error);
-                    dup2(pipes[j - 1][0], STDIN_FILENO);
+                    dup2(pipes[j - 1].read, STDIN_FILENO);
                 } else {
-                    dup2(pipes[j - 1][0], STDIN_FILENO);
-                    dup2(pipes[j][1], STDOUT_FILENO);
+                    dup2(pipes[j - 1].read, STDIN_FILENO);
+                    dup2(pipes[j].write, STDOUT_FILENO);
                 }
 
                 for (int k = 0; k < line->ncommands - 1; k++) {
-                    close(pipes[k][0]);
-                    close(pipes[k][1]);
-                    free(pipes[k]);
+                    close(pipes[k].read);
+                    close(pipes[k].write);
                 }
                 free(pipes);
 
@@ -227,32 +228,28 @@ void ejecutarPipes(int countJobs, char jobsCommands[], pid_t *jobsPids[], tline 
         }
 
         for (int k = 0; k < line->ncommands - 1; k++) {
-            close(pipes[k][0]);
-            close(pipes[k][1]);
-            free(pipes[k]);
+            close(pipes[k].read);
+            close(pipes[k].write);
         }
         free(pipes);
 
         if (!line->background) {
             for (int z = 0; z < line->ncommands; z++) {
-                waitpid(hijos[z], NULL, 0);
+                waitpid(pids[z], NULL, 0);
             }
         } else {
             strcpy(jobsCommands[countJobs], line->commands[line->ncommands - 1].argv[0]);
-            jobsPids[countJobs] = hijos;
+            jobsPids[countJobs] = pids;
             for (int z = 0; z < line->ncommands; z++) {
-                printf("[%d]\n", hijos[z]);
+                printf("[%d]\n", pids[z]);
             }
-            countJobs++;
+            countJobs+=1;
         }
     } else {
-        for (int x = 0; x < line->ncommands - 1; x++) {
-            free(pipes[x]);
-        }
         free(pipes);
     }
 
-    free(hijos);
+    free(pids);
 }
 
 
