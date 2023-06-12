@@ -65,9 +65,9 @@ int cd(tline *line)
 void jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
 {
     int i;
-    printf("Pid     Status      Command \n");
+    printf("	Pid     Status      Command \n");
     for(i = 0; i < *countJobs; i++){
-            printf("[%d]      Running     %s \n",*countJobs,jobsCommands[i]);
+            printf("[%d]	%d      Running     %s \n",i+1,jobsPids[i],jobsCommands[i]);
     }
 
 }
@@ -165,103 +165,82 @@ int execute_umask(mode_t *mascara,tline *line)
    }
 }
 
-void ejecutarPipes(int *countJobs,char* jobsCommands[], pid_t * jobsPids[],tline *line){
-    pid_t *hijos;
-    int pid;
-    int **pipes;
-    int comprobacion = 0;
+void ejecutarPipes(int countJobs, char jobsCommands[], pid_t *jobsPids[], tline *line, int existencia) {
+    pid_t *hijos = malloc(line->ncommands * sizeof(pid_t));
+    int **pipes = malloc((line->ncommands - 1) * sizeof(int *));
 
-    hijos = malloc(line->ncommands * sizeof(int));
-    pipes = (int **) malloc ((line->ncommands - 1) * sizeof(int *));
-
-    for (int i = 0; i < line->ncommands-1; i++){
-        pipes[i] = (int*) malloc(2*sizeof(int));
-        if (pipe(pipes[i])<0){
-            printf(stderr,"Fallo en el pipe()\n%s\n",strerror(errno));
+    for (int i = 0; i < line->ncommands - 1; i++) {
+        pipes[i] = malloc(2 * sizeof(int));
+        if (pipe(pipes[i]) < 0) {
+            fprintf(stderr, "Fallo en el pipe(): %s\n", strerror(errno));
+            exit(1);
         }
     }
 
-    //Comprobacion uno por uno de que existen los mandatos
-    for (int i = 0; i < line->ncommands; i++){
-    	if ((strcmp(line->commands[i].argv[0], "umask") == 0) || (strcmp(line->commands[i].argv[0], "cd") == 0) || (strcmp(line->commands[i].argv[0], "fg") == 0) || (strcmp(line->commands[i].argv[0], "jobs") == 0) || (strcmp(line->commands[i].argv[0], "exit") == 0)){
-    		continue;
-    	}
-    
-        if(line->commands[i].filename == NULL){
-            fprintf(stderr,"%s:Mandato no encontrado\n",line->commands[0].argv[0]);
-            comprobacion = 1;
-        }
-    }
-    //Si existen los mandatos
-    if (comprobacion == 0){
-        for (int j = 0;j < line->ncommands;j++){
-            pid = fork();
-            if (pid < 0)
-			{
-				fprintf(stderr, "Falló el fork().\n%s\n", strerror(errno));
-				exit(1);
-			}
-            hijos[j]=pid;
-            if (pid == 0){
-                if (!line->background){
+    if (existencia) {
+        for (int j = 0; j < line->ncommands; j++) {
+            pid_t pid = fork();
+            if (pid < 0) {
+                fprintf(stderr, "Falló el fork(): %s\n", strerror(errno));
+                exit(1);
+            }
+            hijos[j] = pid;
+            if (pid == 0) {
+                if (!line->background) {
                     signal(SIGINT, SIG_DFL);
-					signal(SIGQUIT, SIG_DFL);
+                    signal(SIGQUIT, SIG_DFL);
                 }
-                //Si es el primer mandato
-                if (j==0){
-                    redireccion_Ficheros(line->redirect_input, NULL, NULL);  
+
+                if (j == 0) {
+                    redireccion_Ficheros(line->redirect_input, NULL, NULL);
                     dup2(pipes[0][1], STDOUT_FILENO);
-                //Si es el ultimo mandato
-                } else if (j == line->ncommands-1){
-                    redireccion_Ficheros(NULL, line->redirect_output,line->redirect_error);
-                    dup2(pipes[j-1][0], STDIN_FILENO);
-                //Si no es ninguna de esas dos
+                } else if (j == line->ncommands - 1) {
+                    redireccion_Ficheros(NULL, line->redirect_output, line->redirect_error);
+                    dup2(pipes[j - 1][0], STDIN_FILENO);
                 } else {
-                    dup2(pipes[j-1][0],STDIN_FILENO);
+                    dup2(pipes[j - 1][0], STDIN_FILENO);
                     dup2(pipes[j][1], STDOUT_FILENO);
                 }
-                for(int k = 0; k < line->ncommands-1; k++)
-				{
-					close(pipes[k][0]);
-					close(pipes[k][1]);
-					free(pipes[k]);
-				}
-				free(pipes);
-				
-				//Ejecutamos los mandatos
-				execvp(line->commands[j].filename, line->commands[j].argv);
-				printf("Error al ejecutar el mandato: %s\n", strerror(errno));
-				exit(1);
+
+                for (int k = 0; k < line->ncommands - 1; k++) {
+                    close(pipes[k][0]);
+                    close(pipes[k][1]);
+                    free(pipes[k]);
+                }
+                free(pipes);
+
+                execvp(line->commands[j].filename, line->commands[j].argv);
+                fprintf(stderr, "Error al ejecutar el mandato: %s\n", strerror(errno));
+                exit(1);
             }
         }
-        for(int k = 0; k < line->ncommands-1; k++)
-				{
-					close(pipes[k][0]);
-					close(pipes[k][1]);
-					free(pipes[k]);
-				}
-		free(pipes);
 
-        if(!line->background){
-				
-			for (int z = 0; z < line->ncommands; z++){
-				waitpid(hijos[z], NULL, 0);
-			}
-		}else{
-			
-            strcpy(jobsCommands[*countJobs],line->commands[line->ncommands - 1].argv[0]);
-            jobsPids[*countJobs] = hijos;
-            for (int z = 0;z < line->ncommands;z++){
-                printf("[%d]\n",hijos[z]);
+        for (int k = 0; k < line->ncommands - 1; k++) {
+            close(pipes[k][0]);
+            close(pipes[k][1]);
+            free(pipes[k]);
+        }
+        free(pipes);
+
+        if (!line->background) {
+            for (int z = 0; z < line->ncommands; z++) {
+                waitpid(hijos[z], NULL, 0);
             }
-            *countJobs = *countJobs + 1;
-		}
+        } else {
+            strcpy(jobsCommands[countJobs], line->commands[line->ncommands - 1].argv[0]);
+            jobsPids[countJobs] = hijos;
+            for (int z = 0; z < line->ncommands; z++) {
+                printf("[%d]\n", hijos[z]);
+            }
+            countJobs++;
+        }
     } else {
-        for(int x = 0; x < line->ncommands-1;x++){
+        for (int x = 0; x < line->ncommands - 1; x++) {
             free(pipes[x]);
         }
         free(pipes);
     }
+
     free(hijos);
 }
 
@@ -361,7 +340,7 @@ int redireccion_Ficheros(char * in, char * out,char * err){
    }
    return 0;
 }
-}
+
 
 int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids[],int * countJobs){
     pid_t  pid;
@@ -446,10 +425,12 @@ int main(void)
         // En este for se comprueba si alguno de los procesos que estaban en bg ha acabado
         for(i=0;i<countJobs;i++){
           if((waitpid(jobsPids[i],NULL,WNOHANG)!=0)){
-             if(i!=countJobs-1){
-             jobsPids[i] = jobsPids[i+1];
-             jobsCommands[i] = jobsCommands[i+1];
+          for(int j = i; j < countJobs; j++){
+             if(j!=countJobs-1){
+             jobsPids[j] = jobsPids[j+1];
+             jobsCommands[j] = jobsCommands[j+1];
              } 
+             }
           countJobs = countJobs - 1; 
           } 
         }
@@ -474,7 +455,7 @@ int main(void)
         }
         }
         if (line->ncommands > 1){
-            ejecutarPipes(&countJobs,&jobsCommands,&jobsPids,line);
+            ejecutarPipes(&countJobs,&jobsCommands,&jobsPids,line,existencia);
         }
 
         printf("msh:%s> ", getcwd(NULL,1024));
