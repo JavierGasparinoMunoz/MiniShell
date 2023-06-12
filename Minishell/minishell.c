@@ -361,7 +361,7 @@ int redireccion_Ficheros(char * in, char * out,char * err){
    }
    return 0;
 }
-
+}
 
 int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids[],int * countJobs){
     pid_t  pid;
