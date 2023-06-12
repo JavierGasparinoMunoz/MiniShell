@@ -9,6 +9,13 @@
 #include <ctype.h>
 #include <sys/stat.h>
 
+pid_t pidKill;
+
+void manejadorKiller(int senial){
+  kill(pidKill, SIGKILL);
+  printf("Se ha terminado el proceso \n");
+}
+
 // Funcion encargada de realizar el exit    
 void execute_exit(char * jobsCommands[], pid_t * jobsPids[], int * countJobs){
   int j;
@@ -76,6 +83,8 @@ void jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
 void fg(char *jobsCommands[], pid_t *jobsPids[], int *countJobs, tline *line) {
     int numero = *countJobs;
     
+    signal(SIGINT, manejadorKiller);
+    
     // Si hay mas de dos argumentos, se muestra un mensaje de error
 	if(line->commands[0].argc > 2)
 	{
@@ -85,6 +94,7 @@ void fg(char *jobsCommands[], pid_t *jobsPids[], int *countJobs, tline *line) {
     // Si no se le pasa un argumento, se pasa a foreground el ultimo proceso que se paso a background
     else if (line->commands[0].argc == 1) {
             printf("%s \n",jobsCommands[*countJobs-1]);
+            pidKill = jobsPids[numero - 1];
             waitpid(jobsPids[numero - 1], NULL, 0);
         }
         
@@ -93,6 +103,7 @@ void fg(char *jobsCommands[], pid_t *jobsPids[], int *countJobs, tline *line) {
         int index = atoi(line->commands[0].argv[1]);
         if(index <= *countJobs){
             printf("%s \n",jobsCommands[index-1]);
+            pidKill = jobsPids[index-1];
             waitpid(jobsPids[index-1], NULL, 0);    
             }
         else{
