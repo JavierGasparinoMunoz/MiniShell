@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <sys/stat.h>
 
 // Funcion encargada de realizar el exit    
 void execute_exit(char * jobsCommands[], pid_t * jobsPids[], int * countJobs){
@@ -66,7 +67,7 @@ void jobs(char * jobsCommands[], pid_t * jobsPids[], int * countJobs)
     int i;
     printf("Pid     Status      Command \n");
     for(i = 0; i < *countJobs; i++){
-            printf("%d      Running     %s \n",jobsPids[i],jobsCommands[i]);
+            printf("[%d]      Running     %s \n",*countJobs,jobsCommands[i]);
     }
 
 }
@@ -134,7 +135,7 @@ int execute_umask(mode_t *mascara,tline *line)
        for (; ceros > 0; ceros--){
         printf("0");
        }
-       printf("%i\n",*mascara);
+       printf("%o\n",*mascara);
       return 0;
    } 
    // Si se le pasa un argumento se cambia a octal y se modifica la mascara por el nuevo valor
@@ -162,6 +163,106 @@ int execute_umask(mode_t *mascara,tline *line)
       }
      return 0;
    }
+}
+
+void ejecutarPipes(int *countJobs,char* jobsCommands[], pid_t * jobsPids[],tline *line){
+    pid_t *hijos;
+    int pid;
+    int **pipes;
+    int comprobacion = 0;
+
+    hijos = malloc(line->ncommands * sizeof(int));
+    pipes = (int **) malloc ((line->ncommands - 1) * sizeof(int *));
+
+    for (int i = 0; i < line->ncommands-1; i++){
+        pipes[i] = (int*) malloc(2*sizeof(int));
+        if (pipe(pipes[i])<0){
+            printf(stderr,"Fallo en el pipe()\n%s\n",strerror(errno));
+        }
+    }
+
+    //Comprobacion uno por uno de que existen los mandatos
+    for (int i = 0; i < line->ncommands; i++){
+    	if ((strcmp(line->commands[i].argv[0], "umask") == 0) || (strcmp(line->commands[i].argv[0], "cd") == 0) || (strcmp(line->commands[i].argv[0], "fg") == 0) || (strcmp(line->commands[i].argv[0], "jobs") == 0) || (strcmp(line->commands[i].argv[0], "exit") == 0)){
+    		continue;
+    	}
+    
+        if(line->commands[i].filename == NULL){
+            fprintf(stderr,"%s:Mandato no encontrado\n",line->commands[0].argv[0]);
+            comprobacion = 1;
+        }
+    }
+    //Si existen los mandatos
+    if (comprobacion == 0){
+        for (int j = 0;j < line->ncommands;j++){
+            pid = fork();
+            if (pid < 0)
+			{
+				fprintf(stderr, "Falló el fork().\n%s\n", strerror(errno));
+				exit(1);
+			}
+            hijos[j]=pid;
+            if (pid == 0){
+                if (!line->background){
+                    signal(SIGINT, SIG_DFL);
+					signal(SIGQUIT, SIG_DFL);
+                }
+                //Si es el primer mandato
+                if (j==0){
+                    redireccion_Ficheros(line->redirect_input, NULL, NULL);  
+                    dup2(pipes[0][1], STDOUT_FILENO);
+                //Si es el ultimo mandato
+                } else if (j == line->ncommands-1){
+                    redireccion_Ficheros(NULL, line->redirect_output,line->redirect_error);
+                    dup2(pipes[j-1][0], STDIN_FILENO);
+                //Si no es ninguna de esas dos
+                } else {
+                    dup2(pipes[j-1][0],STDIN_FILENO);
+                    dup2(pipes[j][1], STDOUT_FILENO);
+                }
+                for(int k = 0; k < line->ncommands-1; k++)
+				{
+					close(pipes[k][0]);
+					close(pipes[k][1]);
+					free(pipes[k]);
+				}
+				free(pipes);
+				
+				//Ejecutamos los mandatos
+				execvp(line->commands[j].filename, line->commands[j].argv);
+				printf("Error al ejecutar el mandato: %s\n", strerror(errno));
+				exit(1);
+            }
+        }
+        for(int k = 0; k < line->ncommands-1; k++)
+				{
+					close(pipes[k][0]);
+					close(pipes[k][1]);
+					free(pipes[k]);
+				}
+		free(pipes);
+
+        if(!line->background){
+				
+			for (int z = 0; z < line->ncommands; z++){
+				waitpid(hijos[z], NULL, 0);
+			}
+		}else{
+			
+            strcpy(jobsCommands[*countJobs],line->commands[line->ncommands - 1].argv[0]);
+            jobsPids[*countJobs] = hijos;
+            for (int z = 0;z < line->ncommands;z++){
+                printf("[%d]\n",hijos[z]);
+            }
+            *countJobs = *countJobs + 1;
+		}
+    } else {
+        for(int x = 0; x < line->ncommands-1;x++){
+            free(pipes[x]);
+        }
+        free(pipes);
+    }
+    free(hijos);
 }
 
 
@@ -240,6 +341,10 @@ int redireccion_Ficheros(char * in, char * out,char * err){
       }
       // Se cierra el fichero
       fclose(file);
+      
+      if(-1 == chmod(out, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)){
+           fprintf(stderr, "Error al establecer el permiso de lectura");
+      }
       return 1;
    }
    //Si se quiere realizar una redirrecion de error entonces...
@@ -256,7 +361,7 @@ int redireccion_Ficheros(char * in, char * out,char * err){
    }
    return 0;
 }
-
+}
 
 int ejecutarComandoExterno(tline * line, char * jobsCommands[], pid_t * jobsPids[],int * countJobs){
     pid_t  pid;
@@ -362,11 +467,14 @@ int main(void)
             }
         }
         //Si existe el mandato que se ha pasado se comprueba si es un mandato interno o es un mandato externo
-        if (existencia){
+        if (existencia && (line->ncommands == 1)){
             if(!comprobarInternos(line,&jobsCommands,&jobsPids,&countJobs,&mascara)){
                 ejecutarComandoExterno(line,&jobsCommands,&jobsPids,&countJobs);
             }
         }
+        }
+        if (line->ncommands > 1){
+            ejecutarPipes(&countJobs,&jobsCommands,&jobsPids,line);
         }
 
         printf("msh:%s> ", getcwd(NULL,1024));
